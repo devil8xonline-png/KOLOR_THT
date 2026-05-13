@@ -1,1 +1,21 @@
-
+export type Product = {
+  id: string;
+  code: string | null;
+  name: string;
+  image: string | null;
+  size: string | null;
+  surface: string | null;
+  origin: string | null;
+  color: string | null;
+  price: string | null;
+  pdf: string | null;
+  description: string | null;
+  category: string | null;
+  qr_link: string | null;
+  gallery: string | null;
+  video: string | null;
+  collection: string | null;
+  drive_image_url: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
