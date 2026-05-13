@@ -1,41 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@/lib/types";
+import { firstProductImage, productGalleryImages } from "@/lib/images";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ProductActions from "./ProductActions";
-
-function firstImage(p: Product) {
-  if (p.drive_image_url) return p.drive_image_url;
-  if (p.image) return p.image;
-
-  const gallery = String(p.gallery || "")
-    .split("|")
-    .map((x) => x.trim())
-    .filter(Boolean);
-
-  if (gallery.length) return gallery[0];
-
-  return "https://picsum.photos/900/700";
-}
-
-function galleryImages(p: Product) {
-  const arr: string[] = [];
-
-  if (p.drive_image_url) arr.push(p.drive_image_url);
-  if (p.image && !arr.includes(p.image)) arr.push(p.image);
-
-  String(p.gallery || "")
-    .split("|")
-    .map((x) => x.trim())
-    .filter(Boolean)
-    .forEach((x) => {
-      if (!arr.includes(x)) arr.push(x);
-    });
-
-  if (!arr.length) arr.push("https://picsum.photos/900/700");
-
-  return arr;
-}
 
 export default async function ProductDetailPage({
   params,
@@ -55,7 +23,7 @@ export default async function ProductDetailPage({
   }
 
   const p = data as Product;
-  const gallery = galleryImages(p);
+  const gallery = productGalleryImages(p);
 
   return (
     <main className="min-h-screen bg-[#f4f2ef]">
@@ -78,7 +46,7 @@ export default async function ProductDetailPage({
 
             <div className="rounded-3xl bg-zinc-100 aspect-[1/.78] flex items-center justify-center overflow-hidden mb-4">
               <img
-                src={firstImage(p)}
+                src={firstProductImage(p)}
                 alt={p.name}
                 className="w-full h-full object-contain"
               />

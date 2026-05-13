@@ -16,6 +16,6 @@ export type Product = {
   video: string | null;
   collection: string | null;
   drive_image_url: string | null;
-  created_at?: string;
-  updated_at?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 };

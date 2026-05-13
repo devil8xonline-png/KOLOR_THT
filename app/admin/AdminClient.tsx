@@ -1,8 +1,14 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import type { Product } from "@/lib/types";
+import type { Product } from "../../lib/types";
+import {
+  FALLBACK_IMAGE,
+  firstProductImage,
+  normalizeGalleryString,
+  normalizeImageUrl,
+} from "@/lib/images";
 import Link from "next/link";
 
 type ProductForm = {
@@ -51,27 +57,13 @@ function makeId() {
   return "SP-" + Math.random().toString(16).slice(2, 10).toUpperCase();
 }
 
-function firstImage(p: Product) {
-  if (p.drive_image_url) return p.drive_image_url;
-  if (p.image) return p.image;
-
-  const gallery = String(p.gallery || "")
-    .split("|")
-    .map((x) => x.trim())
-    .filter(Boolean);
-
-  if (gallery.length) return gallery[0];
-
-  return "https://picsum.photos/900/700";
-}
-
 function normalizeSearch(value: string) {
   return String(value || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/×/g, "x")
+    .replace(/Ä‘/g, "d")
+    .replace(/Ã—/g, "x")
     .replace(/\*/g, "x")
     .replace(/\s*x\s*/g, "x")
     .replace(/[^a-z0-9x]+/g, " ")
@@ -108,11 +100,35 @@ export default function AdminClient() {
 
   const [q, setQ] = useState("");
 
-  useEffect(() => {
-    checkSession();
+  const loadProducts = useCallback(async function loadProducts() {
+    setLoadingProducts(true);
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      alert("LÃ¡Â»â€”i tÃ¡ÂºÂ£i sÃ¡ÂºÂ£n phÃ¡ÂºÂ©m: " + error.message);
+      setProducts([]);
+    } else {
+      setProducts((data || []) as Product[]);
+    }
+
+    const { count: leads } = await supabase
+      .from("leads")
+      .select("*", { count: "exact", head: true });
+
+    const { count: views } = await supabase
+      .from("product_views")
+      .select("*", { count: "exact", head: true });
+
+    setLeadCount(leads || 0);
+    setViewCount(views || 0);
+    setLoadingProducts(false);
   }, []);
 
-  async function checkSession() {
+  const checkSession = useCallback(async function checkSession() {
     setAuthLoading(true);
 
     const { data } = await supabase.auth.getSession();
@@ -140,7 +156,12 @@ export default function AdminClient() {
     if (ok) {
       loadProducts();
     }
-  }
+  }, [loadProducts]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkSession();
+  }, [checkSession]);
 
   async function login(e: React.FormEvent) {
     e.preventDefault();
@@ -151,7 +172,7 @@ export default function AdminClient() {
     });
 
     if (error) {
-      alert("Đăng nhập lỗi: " + error.message);
+      alert("ÄÄƒng nháº­p lá»—i: " + error.message);
       return;
     }
 
@@ -164,35 +185,6 @@ export default function AdminClient() {
     setSessionEmail("");
     setProducts([]);
   }
-
-  async function loadProducts() {
-  setLoadingProducts(true);
-
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .order("name", { ascending: true });
-
-  if (error) {
-    alert("Lỗi tải sản phẩm: " + error.message);
-    setProducts([]);
-  } else {
-    setProducts((data || []) as Product[]);
-  }
-
-  const { count: leads } = await supabase
-    .from("leads")
-    .select("*", { count: "exact", head: true });
-
-  const { count: views } = await supabase
-    .from("product_views")
-    .select("*", { count: "exact", head: true });
-
-  setLeadCount(leads || 0);
-  setViewCount(views || 0);
-
-  setLoadingProducts(false);
-}
 
   const filteredProducts = useMemo(() => {
     const keywords = normalizeSearch(q)
@@ -263,7 +255,7 @@ export default function AdminClient() {
     if (!file) return;
 
     if (!form.name.trim()) {
-      alert("Bạn nhập tên sản phẩm trước rồi upload ảnh.");
+      alert("Báº¡n nháº­p tÃªn sáº£n pháº©m trÆ°á»›c rá»“i upload áº£nh.");
       return;
     }
 
@@ -280,7 +272,7 @@ export default function AdminClient() {
       });
 
     if (error) {
-      alert("Upload ảnh lỗi: " + error.message);
+      alert("Upload áº£nh lá»—i: " + error.message);
       setUploading(false);
       return;
     }
@@ -299,7 +291,7 @@ export default function AdminClient() {
     e.preventDefault();
 
     if (!form.name.trim()) {
-      alert("Tên sản phẩm là bắt buộc.");
+      alert("TÃªn sáº£n pháº©m lÃ  báº¯t buá»™c.");
       return;
     }
 
@@ -311,7 +303,7 @@ export default function AdminClient() {
       id,
       code: form.code || null,
       name: form.name.trim(),
-      image: form.image || null,
+      image: normalizeImageUrl(form.image) || null,
       size: form.size || null,
       surface: form.surface || null,
       origin: form.origin || null,
@@ -320,10 +312,10 @@ export default function AdminClient() {
       pdf: form.pdf || null,
       description: form.description || null,
       category: form.category || null,
-      gallery: form.gallery || null,
+      gallery: normalizeGalleryString(form.gallery) || null,
       video: form.video || null,
       collection: form.collection || null,
-      drive_image_url: form.drive_image_url || null,
+      drive_image_url: normalizeImageUrl(form.drive_image_url) || null,
       updated_at: new Date().toISOString(),
     };
 
@@ -334,18 +326,18 @@ export default function AdminClient() {
     setSaving(false);
 
     if (error) {
-      alert("Lỗi lưu sản phẩm: " + error.message);
+      alert("Lá»—i lÆ°u sáº£n pháº©m: " + error.message);
       return;
     }
 
-    alert(editingId ? "Đã cập nhật sản phẩm." : "Đã thêm sản phẩm.");
+    alert(editingId ? "ÄÃ£ cáº­p nháº­t sáº£n pháº©m." : "ÄÃ£ thÃªm sáº£n pháº©m.");
     resetForm();
     loadProducts();
   }
 
   async function deleteProduct(id: string, name: string) {
     const ok = confirm(
-      `Bạn chắc chắn muốn xóa sản phẩm này?\n\n${name}\n\nThao tác này không hoàn tác.`
+      `Báº¡n cháº¯c cháº¯n muá»‘n xÃ³a sáº£n pháº©m nÃ y?\n\n${name}\n\nThao tÃ¡c nÃ y khÃ´ng hoÃ n tÃ¡c.`
     );
 
     if (!ok) return;
@@ -353,11 +345,11 @@ export default function AdminClient() {
     const { error } = await supabase.from("products").delete().eq("id", id);
 
     if (error) {
-      alert("Lỗi xóa sản phẩm: " + error.message);
+      alert("Lá»—i xÃ³a sáº£n pháº©m: " + error.message);
       return;
     }
 
-    alert("Đã xóa sản phẩm.");
+    alert("ÄÃ£ xÃ³a sáº£n pháº©m.");
     loadProducts();
   }
 
@@ -366,14 +358,14 @@ export default function AdminClient() {
 
     navigator.clipboard
       .writeText(url)
-      .then(() => alert("Đã copy link sản phẩm."))
+      .then(() => alert("ÄÃ£ copy link sáº£n pháº©m."))
       .catch(() => alert(url));
   }
 
   if (authLoading) {
     return (
       <main className="min-h-screen bg-[#f4f2ef] flex items-center justify-center">
-        <div className="text-zinc-500">Đang kiểm tra đăng nhập...</div>
+        <div className="text-zinc-500">Äang kiá»ƒm tra Ä‘Äƒng nháº­p...</div>
       </main>
     );
   }
@@ -397,7 +389,7 @@ export default function AdminClient() {
             className="max-w-md mx-auto bg-white rounded-3xl shadow-xl p-7 mt-10"
           >
             <h1 className="text-2xl font-extrabold mb-6">
-              Đăng nhập Admin
+              ÄÄƒng nháº­p Admin
             </h1>
 
             <div className="grid gap-4">
@@ -411,19 +403,19 @@ export default function AdminClient() {
               <input
                 className="rounded-xl border px-4 py-3"
                 type="password"
-                placeholder="Mật khẩu"
+                placeholder="Máº­t kháº©u"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
 
               <button className="rounded-xl bg-black text-white py-3 font-bold">
-                Đăng nhập
+                ÄÄƒng nháº­p
               </button>
             </div>
 
             {sessionEmail && !isAdmin && (
               <div className="mt-4 text-sm text-red-600">
-                Tài khoản {sessionEmail} chưa được cấp quyền admin.
+                TÃ i khoáº£n {sessionEmail} chÆ°a Ä‘Æ°á»£c cáº¥p quyá»n admin.
               </div>
             )}
           </form>
@@ -461,7 +453,7 @@ export default function AdminClient() {
             onClick={logout}
             className="rounded-xl bg-[#c6a14a] text-white px-4 py-2 font-bold"
           >
-            Đăng xuất
+            ÄÄƒng xuáº¥t
           </button>
         </div>
       </header>
@@ -470,17 +462,17 @@ export default function AdminClient() {
 	<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
  	 <div className="bg-white rounded-3xl p-5 shadow-sm">
     	<div className="text-3xl font-extrabold">{products.length}</div>
-    	<div className="text-zinc-500">Tổng sản phẩm</div>
+    	<div className="text-zinc-500">Tá»•ng sáº£n pháº©m</div>
 	  </div>
 
   <div className="bg-white rounded-3xl p-5 shadow-sm">
     <div className="text-3xl font-extrabold">{leadCount}</div>
-    <div className="text-zinc-500">Khách để lại thông tin</div>
+    <div className="text-zinc-500">KhÃ¡ch Ä‘á»ƒ láº¡i thÃ´ng tin</div>
   </div>
 
   <div className="bg-white rounded-3xl p-5 shadow-sm">
     <div className="text-3xl font-extrabold">{viewCount}</div>
-    <div className="text-zinc-500">Lượt xem sản phẩm</div>
+    <div className="text-zinc-500">LÆ°á»£t xem sáº£n pháº©m</div>
   </div>
 </div>
         <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6">
@@ -489,7 +481,7 @@ export default function AdminClient() {
             className="bg-white rounded-3xl shadow-sm p-5 md:p-6 h-fit"
           >
             <h2 className="text-2xl font-extrabold mb-5">
-              {editingId ? "Sửa sản phẩm" : "Thêm sản phẩm"}
+              {editingId ? "Sá»­a sáº£n pháº©m" : "ThÃªm sáº£n pháº©m"}
             </h2>
 
             <div className="grid gap-3">
@@ -502,14 +494,14 @@ export default function AdminClient() {
 
               <input
                 className="rounded-xl border px-4 py-3"
-                placeholder="Tên sản phẩm *"
+                placeholder="TÃªn sáº£n pháº©m *"
                 value={form.name}
                 onChange={(e) => updateForm("name", e.target.value)}
               />
 
               <input
                 className="rounded-xl border px-4 py-3"
-                placeholder="Kích thước"
+                placeholder="KÃ­ch thÆ°á»›c"
                 value={form.size}
                 onChange={(e) => updateForm("size", e.target.value)}
               />
@@ -517,14 +509,14 @@ export default function AdminClient() {
               <div className="grid grid-cols-2 gap-3">
                 <input
                   className="rounded-xl border px-4 py-3"
-                  placeholder="Bề mặt"
+                  placeholder="Bá» máº·t"
                   value={form.surface}
                   onChange={(e) => updateForm("surface", e.target.value)}
                 />
 
                 <input
                   className="rounded-xl border px-4 py-3"
-                  placeholder="Xuất xứ"
+                  placeholder="Xuáº¥t xá»©"
                   value={form.origin}
                   onChange={(e) => updateForm("origin", e.target.value)}
                 />
@@ -533,14 +525,14 @@ export default function AdminClient() {
               <div className="grid grid-cols-2 gap-3">
                 <input
                   className="rounded-xl border px-4 py-3"
-                  placeholder="Màu sắc"
+                  placeholder="MÃ u sáº¯c"
                   value={form.color}
                   onChange={(e) => updateForm("color", e.target.value)}
                 />
 
                 <input
                   className="rounded-xl border px-4 py-3"
-                  placeholder="Giá"
+                  placeholder="GiÃ¡"
                   value={form.price}
                   onChange={(e) => updateForm("price", e.target.value)}
                 />
@@ -564,13 +556,13 @@ export default function AdminClient() {
 
               <input
                 className="rounded-xl border px-4 py-3"
-                placeholder="Link ảnh chính"
+                placeholder="Link áº£nh chÃ­nh"
                 value={form.image}
                 onChange={(e) => updateForm("image", e.target.value)}
               />
 
               <label className="rounded-xl border border-dashed p-4 text-center cursor-pointer bg-zinc-50">
-                {uploading ? "Đang upload ảnh..." : "Upload ảnh sản phẩm"}
+                {uploading ? "Äang upload áº£nh..." : "Upload áº£nh sáº£n pháº©m"}
                 <input
                   type="file"
                   accept="image/*"
@@ -585,9 +577,12 @@ export default function AdminClient() {
               {(form.drive_image_url || form.image) && (
                 <div className="rounded-2xl bg-zinc-100 aspect-[4/3] overflow-hidden">
                   <img
-                    src={form.drive_image_url || form.image}
+                    src={normalizeImageUrl(form.drive_image_url || form.image)}
                     alt=""
                     className="w-full h-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = FALLBACK_IMAGE;
+                    }}
                   />
                 </div>
               )}
@@ -615,7 +610,7 @@ export default function AdminClient() {
 
               <textarea
                 className="rounded-xl border px-4 py-3 min-h-24"
-                placeholder="Mô tả"
+                placeholder="MÃ´ táº£"
                 value={form.description}
                 onChange={(e) => updateForm("description", e.target.value)}
               />
@@ -625,7 +620,7 @@ export default function AdminClient() {
                   disabled={saving}
                   className="rounded-xl bg-black text-white py-3 font-bold disabled:opacity-50"
                 >
-                  {saving ? "Đang lưu..." : editingId ? "Cập nhật" : "Thêm mới"}
+                  {saving ? "Äang lÆ°u..." : editingId ? "Cáº­p nháº­t" : "ThÃªm má»›i"}
                 </button>
 
                 <button
@@ -633,7 +628,7 @@ export default function AdminClient() {
                   onClick={resetForm}
                   className="rounded-xl bg-zinc-200 py-3 font-bold"
                 >
-                  Làm mới
+                  LÃ m má»›i
                 </button>
               </div>
             </div>
@@ -642,7 +637,7 @@ export default function AdminClient() {
           <div className="bg-white rounded-3xl shadow-sm p-5 md:p-6">
             <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
               <h2 className="text-2xl font-extrabold">
-                Danh sách sản phẩm
+                Danh sÃ¡ch sáº£n pháº©m
               </h2>
 
               <div className="text-sm text-zinc-500">
@@ -652,18 +647,18 @@ export default function AdminClient() {
 
             <input
               className="rounded-xl border px-4 py-3 w-full mb-5"
-              placeholder="Tìm: 600x600 indo..."
+              placeholder="TÃ¬m: 600x600 indo..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
 
             {loadingProducts ? (
               <div className="text-center py-20 text-zinc-500">
-                Đang tải sản phẩm...
+                Äang táº£i sáº£n pháº©m...
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className="text-center py-20 text-zinc-500">
-                Không có sản phẩm
+                KhÃ´ng cÃ³ sáº£n pháº©m
               </div>
             ) : (
               <div className="grid gap-3">
@@ -674,19 +669,22 @@ export default function AdminClient() {
                   >
                     <div className="w-20 h-16 md:w-24 md:h-20 rounded-xl bg-zinc-100 overflow-hidden">
                       <img
-                        src={firstImage(p)}
+                        src={firstProductImage(p)}
                         alt=""
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = FALLBACK_IMAGE;
+                        }}
                       />
                     </div>
 
                     <div>
                       <div className="font-extrabold">{p.name}</div>
                       <div className="text-sm text-zinc-500">
-                        {p.code || "—"} · {p.size || "—"} · {p.origin || "—"}
+                        {p.code || "â€”"} Â· {p.size || "â€”"} Â· {p.origin || "â€”"}
                       </div>
                       <div className="text-[#b68b2c] font-bold mt-1">
-                        {p.price || "Liên hệ"}
+                        {p.price || "LiÃªn há»‡"}
                       </div>
                     </div>
 
@@ -695,7 +693,7 @@ export default function AdminClient() {
                         onClick={() => editProduct(p)}
                         className="rounded-xl bg-black text-white px-4 py-2 font-bold"
                       >
-                        Sửa
+                        Sá»­a
                       </button>
 
                       <Link
@@ -717,7 +715,7 @@ export default function AdminClient() {
                         onClick={() => deleteProduct(p.id, p.name)}
                         className="rounded-xl bg-red-700 text-white px-4 py-2 font-bold"
                       >
-                        Xóa
+                        XÃ³a
                       </button>
                     </div>
                   </div>
@@ -730,3 +728,4 @@ export default function AdminClient() {
     </main>
   );
 }
+

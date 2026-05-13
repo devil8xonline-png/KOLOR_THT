@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@/lib/types";
+import { firstProductImage, FALLBACK_IMAGE } from "@/lib/images";
 import Link from "next/link";
 
 function normalizeSearch(value: string) {
@@ -17,20 +18,6 @@ function normalizeSearch(value: string) {
     .replace(/[^a-z0-9x]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function firstImage(p: Product) {
-  if (p.drive_image_url) return p.drive_image_url;
-  if (p.image) return p.image;
-
-  const gallery = String(p.gallery || "")
-    .split("|")
-    .map((x) => x.trim())
-    .filter(Boolean);
-
-  if (gallery.length) return gallery[0];
-
-  return "https://picsum.photos/900/700";
 }
 
 function unique(values: Array<string | null>) {
@@ -210,11 +197,11 @@ export default function HomePage() {
               >
                 <div className="aspect-[4/3] bg-zinc-100">
                   <img
-                    src={firstImage(p)}
+                    src={firstProductImage(p)}
                     alt={p.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.currentTarget.src = "https://picsum.photos/900/700";
+                      e.currentTarget.src = FALLBACK_IMAGE;
                     }}
                   />
                 </div>
